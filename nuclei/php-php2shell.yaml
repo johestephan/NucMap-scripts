@@ -1,0 +1,203 @@
+id: php-php2shell
+
+info:
+  name: PHP PHP2Shell Remote Code Execution Detection (CVE-2026-109618, CVE-2026-109619)
+  author: johestephan
+  severity: critical
+  description: |
+    Detects PHP services vulnerable to PHP2Shell (CVE-2026-109618 and CVE-2026-109619).
+    
+    PHP2Shell refers to two critical remote code execution vulnerabilities:
+    
+    CVE-2026-109618: Out-of-memory error handling via longjmp() leaves request memory 
+    uninitialized due to improper control flow management, allowing attackers to reliably 
+    achieve RCE using OOM triggers.
+    
+    CVE-2026-109619: Fatal error handling via longjmp() leaves global memory pointing 
+    to freed memory regions. These regions can later be read or branched on during 
+    subsequent requests, enabling attackers to execute arbitrary code.
+    
+    Both vulnerabilities are rated 9.2 (CVSS 4.0) and affect PHP 8.0.x through 8.3.x 
+    prior to patched versions. Over 22.6 million PHP instances are potentially vulnerable 
+    according to Palo Alto Networks Cortex Xpanse telemetry (October 2026).
+    
+    These vulnerabilities are being actively exploited in the wild, with attackers 
+    chaining PHP2Shell with Linux kernel privilege-escalation vulnerabilities to gain 
+    root access on compromised systems.
+  reference:
+    - https://nvd.nist.gov/vuln/detail/CVE-2026-109618
+    - https://nvd.nist.gov/vuln/detail/CVE-2026-109619
+    - https://security.paloaltonetworks.com/CVE-2026-109618
+    - https://security.paloaltonetworks.com/CVE-2026-109619
+    - https://unit42.paloaltonetworks.com/tag/PHP2Shell
+    - https://www.php.net/ChangeLog-8.php
+    - https://dreamgroup.com/blog/chained-php2shell-exploit-roots-25-servers
+  classification:
+    cve-id: CVE-2026-109618,CVE-2026-109619
+    cwe-id: CWE-754,CWE-416
+    epss: 0.97
+  tags: php,rce,php2shell,cve,cve2026,critical,remote
+
+# HTTP Requests
+http:
+  # Check for vulnerable PHP versions via headers
+  - raw:
+      - |
+        GET / HTTP/1.1
+        Host: {{Hostname}}
+        User-Agent: Nuclei/3.0 (PHP2Shell Scanner)
+        Accept: */*
+        Connection: close
+    
+    matchers-condition: or
+    matchers:
+      # Match vulnerable PHP versions in X-Powered-By header
+      - type: regex
+        part: header
+        regex:
+          - 'X-Powered-By:.*PHP/(8\.(0|1|2|3)\.(0|[1-9]|[1-5][0-9]|6[0-3]))'
+          - 'X-Powered-By:.*PHP/8\.0\.(0|[1-9]|[1-9][0-9]|10[0-9]|11[0-2])'
+          - 'X-Powered-By:.*PHP/8\.1\.(0|[1-9]|[1-8][0-9]|9[0-1])'
+          - 'X-Powered-By:.*PHP/8\.2\.(0|[1-9]|[1-4][0-9]|5[0-6])'
+          - 'X-Powered-By:.*PHP/8\.3\.(0|[1-9]|1[0-9]|2[0-8])'
+        case-insensitive: true
+        condition: or
+      
+      # Match vulnerable PHP versions in Server header
+      - type: regex
+        part: header
+        regex:
+          - 'Server:.*PHP/(8\.(0|1|2|3)\.(0|[1-9]|[1-5][0-9]|6[0-3]))'
+          - 'Server:.*PHP/8\.0\.(0|[1-9]|[1-9][0-9]|10[0-9]|11[0-2])'
+          - 'Server:.*PHP/8\.1\.(0|[1-9]|[1-8][0-9]|9[0-1])'
+          - 'Server:.*PHP/8\.2\.(0|[1-9]|[1-4][0-9]|5[0-6])'
+          - 'Server:.*PHP/8\.3\.(0|[1-9]|1[0-9]|2[0-8])'
+        case-insensitive: true
+        condition: or
+    
+    # Extract version and other information
+    extractors:
+      - type: regex
+        part: header
+        name: php_version
+        group: 1
+        regex:
+          - 'PHP/([0-9]+\.[0-9]+\.[0-9]+)'
+        case-insensitive: true
+      
+      - type: regex
+        part: header
+        name: server_header
+        group: 1
+        regex:
+          - 'Server: (.+)'
+        case-insensitive: true
+    
+    # Request 2: Check for phpinfo pages
+  - raw:
+      - |
+        GET /phpinfo.php HTTP/1.1
+        Host: {{Hostname}}
+        User-Agent: Nuclei/3.0 (PHP2Shell Scanner)
+        Accept: */*
+        Connection: close
+    
+    matchers:
+      - type: regex
+        part: body
+        regex:
+          - 'PHP Version</td><td[^>]*>(8\.(0|1|2|3)\.(0|[1-9]|[1-5][0-9]|6[0-3]))'
+          - 'PHP Version</td><td[^>]*>8\.0\.(0|[1-9]|[1-9][0-9]|10[0-9]|11[0-2])'
+          - 'PHP Version</td><td[^>]*>8\.1\.(0|[1-9]|[1-8][0-9]|9[0-1])'
+          - 'PHP Version</td><td[^>]*>8\.2\.(0|[1-9]|[1-4][0-9]|5[0-6])'
+          - 'PHP Version</td><td[^>]*>8\.3\.(0|[1-9]|1[0-9]|2[0-8])'
+        condition: or
+    
+    extractors:
+      - type: regex
+        part: body
+        name: php_version
+        group: 1
+        regex:
+          - 'PHP Version[^>]*>([0-9]+\.[0-9]+\.[0-9]+)'
+    
+  # Request 3: Check for PHP2Shell-specific patterns (upload.progress)
+  - raw:
+      - |
+        POST /index.php HTTP/1.1
+        Host: {{Hostname}}
+        User-Agent: Nuclei/3.0 (PHP2Shell Scanner)
+        Content-Type: application/x-www-form-urlencoded
+        Accept: */*
+        Connection: close
+        
+        UPLOAD_IDENTIFIER=test&PHP_SESSION_UPLOAD_PROGRESS=1
+    
+    matchers-condition: and
+    matchers:
+      # Look for server errors that might indicate vulnerability
+      - type: word
+        part: body
+        words:
+          - "Fatal error"
+          - "Allowed memory"
+          - "Out of memory"
+          - "longjmp"
+        condition: or
+        case-insensitive: true
+      
+      # Response should be from PHP
+      - type: regex
+        part: header
+        regex:
+          - 'X-Powered-By:.*PHP'
+          - 'Server:.*PHP'
+        case-insensitive: true
+        condition: or
+    
+    extractors:
+      - type: word
+        part: body
+        name: error_message
+        word:
+          - "Fatal error"
+          - "Allowed memory"
+          - "Out of memory"
+        case-insensitive: true
+
+  # Request 4: Check for OOM trigger pattern
+  - raw:
+      - |
+        POST /upload.php HTTP/1.1
+        Host: {{Hostname}}
+        User-Agent: Nuclei/3.0 (PHP2Shell Scanner)
+        Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+        Accept: */*
+        Connection: close
+        
+        ------WebKitFormBoundary7MA4YWxkTrZu0gW
+        Content-Disposition: form-data; name="file"; filename="test.txt"
+        Content-Type: text/plain
+        
+        {{repeat("A", 100000)}}
+        ------WebKitFormBoundary7MA4YWxkTrZu0gW--
+    
+    matchers-condition: and
+    matchers:
+      # Look for memory-related errors
+      - type: word
+        part: body
+        words:
+          - "Allowed memory"
+          - "Out of memory"
+        condition: or
+        case-insensitive: true
+      
+      # Response should be from PHP
+      - type: regex
+        part: header
+        regex:
+          - 'X-Powered-By:.*PHP'
+          - 'Server:.*PHP'
+        case-insensitive: true
+        condition: or

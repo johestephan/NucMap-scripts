@@ -1,0 +1,54 @@
+id: ssl-emudhra-compromise
+
+info:
+  name: eMudhra Compromised Intermediate CA Certificate Detection
+  author: johestephan
+  severity: critical
+  description: |
+    Detects TLS/SSL services presenting certificates issued by or chaining to compromised
+    eMudhra (emSign) Intermediate Certificate Authorities (CVE-2026-111943 / Mozilla Bug 2083449).
+    Eight intermediate CA private keys (16 certificates across native emSign Root G3 and
+    Sectigo cross-signed hierarchies) were generated with insufficient randomness, allowing
+    attackers to derive the private keys and forge unauthorized TLS certificates.
+  reference:
+    - https://bugzilla.mozilla.org/show_bug.cgi?id=2083449
+    - https://unit42.paloaltonetworks.com/emudhra-certificate-compromise/
+  classification:
+    cve-id: CVE-2026-111943
+  tags: ssl,tls,emudhra,emsign,cve,cve2026,pki,nucmap
+
+ssl:
+  - address: "{{Host}}:{{Port}}"
+
+    matchers-condition: or
+    matchers:
+      - type: word
+        part: issuer_cn
+        words:
+          - "EM DV TLS CA - G3B"
+          - "EM DV TLS CA - G3C"
+          - "EM OV TLS CA - G3B"
+          - "EM OV TLS CA - G3C"
+          - "EM EV TLS CA - G3B"
+          - "EM EV TLS CA - G3C"
+          - "EM OV CS CA - G3B"
+          - "EM OV CS CA - G3C"
+          - "emSign ECC Root CA - G3"
+          - "emSign Root TLS CA - G3"
+          - "emSign Root CS CA - G3"
+        case-insensitive: true
+
+      - type: word
+        part: issuer_org
+        words:
+          - "eMudhra"
+          - "emSign"
+        case-insensitive: true
+
+    extractors:
+      - type: json
+        dsl:
+          - "issuer_cn"
+          - "issuer_org"
+          - "subject_cn"
+          - "fingerprint_hash.sha256"
