@@ -260,9 +260,9 @@ action = function(host, port)
   local vuln_table = {
     title = "PHP PHP2Shell Remote Code Execution (CVE-2026-109618, CVE-2026-109619)",
     IDS = {
-      CVE = { "CVE-2026-109618", "CVE-2026-109619" }
+      CVE = "CVE-2026-109618"
     },
-    risk_factor = "Critical",
+    risk_factor = "High",
     scores = {
       CVSSv4 = "9.2"
     },

@@ -384,7 +384,7 @@ action = function(host, port)
   local vuln_table = {
     title = "eMudhra Compromised Intermediate CA Certificate (CVE-2026-111943)",
     IDS = { CVE = "CVE-2026-111943" },
-    risk_factor = "Critical",
+    risk_factor = "High",
     description = [[
 Eight intermediate CA private keys belonging to Indian CA eMudhra Limited
 (16 certificates across emSign Root G3 and Sectigo cross-signed paths) were
