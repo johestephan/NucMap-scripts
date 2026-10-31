@@ -15,14 +15,14 @@ NucMap-scripts/
 ├── README.md                               # Repository documentation
 ├── nse/                                    # Custom Nmap Scripting Engine (.nse) Lua scripts
 │   ├── ssl-emudhra-compromise.nse          # Detects compromised eMudhra Intermediate CAs (CVE-2026-111943)
-│   ├── php-php2shell.nse                   # Detects PHP2Shell RCE vulnerabilities (CVE-2026-109618, CVE-2026-109619)
+│   ├── php-php2shell.nse                   # Detects PHP2Shell RCE (CVE-2026-109618, CVE-2026-109619)
 │   └── nucmap-template.nse                 # Starter NSE template for NucMap
 ├── nuclei/                                 # Custom ProjectDiscovery Nuclei (.yaml) templates
 │   ├── ssl-emudhra-compromise.yaml         # Nuclei SSL template for compromised eMudhra CAs
-│   └── php-php2shell.yaml                  # Nuclei template for PHP2Shell detection
+│   └── php-php2shell.yaml                  # Nuclei HTTP template for PHP2Shell RCE
 ├── scripts/                                # Auxiliary audit & deployment helpers
 │   ├── audit-emudhra-truststore.sh         # Local trust-store & PEM bundle auditor for eMudhra CAs
-│   └── audit-php2shell.sh                  # Local and remote PHP version auditor for PHP2Shell
+│   └── audit-php2shell.sh                  # Local & remote PHP2Shell installation auditor
 └── research/                               # (Git-ignored) Local research notes, advisories, and PCAPs
 ```
 
@@ -35,10 +35,7 @@ Detects TLS/SSL services presenting certificates issued by or chaining to the **
 
 * **Nmap NSE Script (`nse/ssl-emudhra-compromise.nse`)**:
   ```bash
-  # Scan a target for compromised eMudhra certificates:
   nmap -sV -p 443,8443 --script ./nse/ssl-emudhra-compromise.nse <TARGET>
-
-  # Show certificate issuer details even when the target is not vulnerable:
   nmap -sV -p 443 --script ./nse/ssl-emudhra-compromise.nse --script-args ssl-emudhra-compromise.showall=1 <TARGET>
   ```
 * **Nuclei Template (`nuclei/ssl-emudhra-compromise.yaml`)**:
@@ -47,11 +44,33 @@ Detects TLS/SSL services presenting certificates issued by or chaining to the **
   ```
 * **Local Trust Store Auditor (`scripts/audit-emudhra-truststore.sh`)**:
   ```bash
-  # Audit default system trust stores (/etc/ssl/certs, /usr/share/ca-certificates):
   ./scripts/audit-emudhra-truststore.sh
+  ```
 
-  # Audit a custom PEM bundle or directory (e.g., Python certifi or app certs):
-  ./scripts/audit-emudhra-truststore.sh /path/to/certs
+---
+
+### 2. PHP2Shell RCE Scanner (`CVE-2026-109618`, `CVE-2026-109619`)
+Detects PHP instances vulnerable to **PHP2Shell** (`longjmp()` out-of-memory uninitialized request state and fatal error Use-After-Free across requests, CVSS 4.0 **9.2 Critical**). Covers affected branches **PHP 5.4 – 8.5** prior to patched releases **`8.5.12`**, **`8.4.27`**, **`8.3.36`**, and **`8.2.35`**.
+
+* **Nmap NSE Script (`nse/php-php2shell.nse`)**:
+  ```bash
+  # Check PHP versions via service banners, HTTP headers, and exposed phpinfo:
+  nmap -sV -p 80,443,8080,8443 --script ./nse/php-php2shell.nse <TARGET>
+
+  # Show PHP version assessment even when patched:
+  nmap -sV -p 80,443 --script ./nse/php-php2shell.nse --script-args php-php2shell.showall=1 <TARGET>
+  ```
+* **Nuclei Template (`nuclei/php-php2shell.yaml`)**:
+  ```bash
+  nuclei -u https://<TARGET> -t ./nuclei/php-php2shell.yaml
+  ```
+* **Local & Remote Auditor (`scripts/audit-php2shell.sh`)**:
+  ```bash
+  # Audit local PHP CLI/FPM binaries, OS packages, and running workers:
+  ./scripts/audit-php2shell.sh
+
+  # Audit a remote URL:
+  ./scripts/audit-php2shell.sh https://<TARGET>
   ```
 
 ---
